@@ -10,7 +10,7 @@ import torch
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-# [修改] 导入重命名后的配置
+# Import modular configuration and custom source modules
 import configs as cfg
 from src.utils import *
 from src.model import DeepEnsembleAgent, GaussianFTTransformer
@@ -28,7 +28,7 @@ def set_seed(seed):
 
 set_seed(cfg.SEED)
 
-# ---------- Setup ----------
+# ---------- Setup & Logging ----------
 ensure_dir(cfg.RESULTS_DIR)
 ensure_dir(cfg.MODEL_DIR)
 ensure_dir(cfg.PLOT_DIR)
@@ -40,11 +40,16 @@ logger.info(f"Using device: {device}")
 logger.info(f"Query Strategy: {cfg.QUERY_STRATEGY} | Loss: {cfg.LOSS_NAME}") 
 
 def to_logit_space(y_tensor, eps=1e-6):
+    """
+    Transforms target values from [0, 1] to logit space (-inf, +inf).
+    Required for Gaussian modeling of bounded outputs.
+    """
     y_clamped = torch.clamp(y_tensor, min=eps, max=1.0-eps)
     z = torch.log(y_clamped / (1.0 - y_clamped))
     return z
 
 # ---------- Data Loading & Preprocessing ----------
+# Features for PartMC simulation dataset
 features = [
     'O3 (ppb)', 'CO (ppb)', 'NO (ppb)', 'NOx (ppb)', 'ETH (ppb)', 'TOL(ppb)',
     'XYL (ppb)', 'ALD2 (ppb)', 'AONE (ppb)', 'PAR (ppb)', 'OLET (ppb)',
@@ -54,16 +59,15 @@ features = [
 
 
 logger.info("Loading data...")
-# 假设数据路径相对位置不变
 labeled_df = pd.read_csv('../PartMC_data/PartMC_labeled.csv')
 unlabeled_df = pd.read_csv('../PartMC_data/PartMC_unlabeled.csv')
 valid_df = pd.read_csv('../PartMC_data/PartMC_valid.csv')
 test_df  = pd.read_csv('../PartMC_data/PartMC_test.csv')
 
+# scenario_pool identifies which physical scenario each data point belongs to (for Group Selection)
 scenarios_pool = unlabeled_df['Scenario_ID'].values
 logger.info(f"Loaded Pool Scenarios. Unique Scenarios: {len(np.unique(scenarios_pool))}")
 
-# Extract Values
 X_train_np = labeled_df[features].values
 y_train_np = labeled_df['Chi'].values
 
@@ -75,7 +79,7 @@ y_valid_np = valid_df['Chi'].values
 X_test_np  = test_df[features].values
 y_test_np  = test_df['Chi'].values
 
-# Scaling
+# Standardize features based on the initial training set
 scaler = StandardScaler()
 X_train_np = scaler.fit_transform(X_train_np)
 X_pool_np  = scaler.transform(X_pool_np)
@@ -102,6 +106,7 @@ y_valid_z = to_logit_space(y_valid)
 
 # Learner Builder
 def get_new_learner():
+    """Initializes a fresh Deep Ensemble of FT-Transformers."""
     model_params = {
         'in_features': cfg.INPUT_FEATURES,
         'd_model': cfg.D_MODEL,
@@ -131,33 +136,33 @@ queried_indices_all = []
 total_start_time = time.time()
 
 logger.info("Evaluating Initial Model (Round 0)...")
-# Evaluate Initial Model
+# Predict and evaluate on the validation and test sets
 val_preds, _ = learner.predict(X_valid)
 val_preds = val_preds.cpu().numpy()
-init_val_rmse = mean_squared_error(y_valid_orig_np, val_preds)
+init_val_mse = mean_squared_error(y_valid_orig_np, val_preds)
 init_val_r2   = r2_score(y_valid_orig_np, val_preds)
 
 test_preds, _ = learner.predict(X_test)
 test_preds = test_preds.cpu().numpy()
-init_test_rmse = mean_squared_error(y_test_orig_np, test_preds)
+init_test_mse = mean_squared_error(y_test_orig_np, test_preds)
 init_test_r2   = r2_score(y_test_orig_np, test_preds)
 
-logger.info(f"Round 0 (Initial): Val RMSE={init_val_rmse:.4f}, R2={init_val_r2:.4f}")
-logger.info(f"Round 0 (Initial): Test RMSE={init_test_rmse:.4f}, R2={init_test_r2:.4f}")
+logger.info(f"Round 0 (Initial): Val RMSE={init_val_mse:.4f}, R2={init_val_r2:.4f}")
+logger.info(f"Round 0 (Initial): Test RMSE={init_test_mse:.4f}, R2={init_test_r2:.4f}")
 
-performance_log.append((0, init_val_rmse, init_val_r2, init_test_rmse, init_test_r2, 0))
+performance_log.append((0, init_val_mse, init_val_r2, init_test_mse, init_test_r2, 0))
 
 # ---------- Active Learning Loop ----------
 for i in range(cfg.N_QUERIES):
     logger.info(f"\n=== Query Round {i+1}/{cfg.N_QUERIES} ===")
 
-    # Strategy Selection
+    # Initialize strategy selector with current model state
     strategy_selector = StrategySelector(learner, cfg)
     
     n_inst = min(cfg.QUERY_BATCH_SIZE, X_pool_np.shape[0])
     logger.info(f"Selecting {n_inst} samples/groups using strategy: {cfg.QUERY_STRATEGY}...")
     
-    # [关键] 调用 select，传入 scenarios_pool 以启用 Group Selection
+    # Select high-utility samples from the pool based on the strategy
     query_idx = strategy_selector.select(
         X_pool, 
         k=n_inst, 
@@ -183,15 +188,12 @@ for i in range(cfg.N_QUERIES):
         save_dir=cfg.ANALYSIS_DIR
     )
     
-    # Retrieve Data
     X_new = X_pool[query_idx]
     y_new_z = y_pool_z[query_idx]
     
-    # Update Train
     X_train = torch.cat([X_train, X_new], dim=0)
     y_train_z = torch.cat([y_train_z, y_new_z], dim=0)
     
-    # Remove from Pool
     mask = torch.ones(len(X_pool), dtype=torch.bool, device=device)
     mask[query_idx] = False
     X_pool = X_pool[mask]
@@ -199,11 +201,9 @@ for i in range(cfg.N_QUERIES):
     y_pool = y_pool[mask]
     scenarios_pool = scenarios_pool[mask.cpu().numpy()]
     
-    # Update Stats
     queried_indices_all.extend(query_idx.tolist())
     logger.info(f"Pool size: {len(X_pool)}, Train size: {len(X_train)}")
     
-    # Retrain
     start_time = time.time()
     learner = get_new_learner()
     learner.fit(X_train, y_train_z, X_val=X_valid, y_val_z=y_valid_z)
@@ -213,19 +213,19 @@ for i in range(cfg.N_QUERIES):
     # Evaluate
     val_preds, _ = learner.predict(X_valid)
     val_preds = val_preds.cpu().numpy()
-    rmse = mean_squared_error(y_valid_orig_np, val_preds)
+    mse = mean_squared_error(y_valid_orig_np, val_preds)
     mae  = mean_absolute_error(y_valid_orig_np, val_preds)
     r2   = r2_score(y_valid_orig_np, val_preds)
 
     test_preds, _ = learner.predict(X_test)
     test_preds = test_preds.cpu().numpy()
-    test_rmse = mean_squared_error(y_test_orig_np, test_preds)
+    test_mse = mean_squared_error(y_test_orig_np, test_preds)
     test_mae  = mean_absolute_error(y_test_orig_np, test_preds)
     test_r2   = r2_score(y_test_orig_np, test_preds)
 
-    logger.info(f"Round {i+1}: Val RMSE={rmse:.4f}, R2={r2:.4f}")
-    logger.info(f"Round {i+1}: Test RMSE={test_rmse:.4f}, R2={test_r2:.4f}")
-    performance_log.append((i+1, rmse, mae, r2, test_rmse, test_mae, test_r2, elapsed_time))
+    logger.info(f"Round {i+1}: Val MSE={mse:.4f}, R2={r2:.4f}")
+    logger.info(f"Round {i+1}: Test MSE={test_mse:.4f}, R2={test_r2:.4f}")
+    performance_log.append((i+1, mse, mae, r2, test_mse, test_mae, test_r2, elapsed_time))
         
     # Save Models
     for idx, model in enumerate(learner.models):

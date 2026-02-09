@@ -67,15 +67,17 @@ class NLL(nn.Module):
         return loss_aleatoric
 
 class NaturalGaussianNLLLoss(nn.Module):
+    """
+    Gaussian NLL calculated using Natural Parameters (Exponential Family form).
+    eta1 = mu / var
+    eta2 = -1 / (2 * var)
+    This form is often more numerically stable for certain optimization paths.
+    """    
     def __init__(self, reduction='mean'):
         super().__init__()
         self.reduction = reduction
 
     def forward(self, natural_params, target):
-        """
-        natural_params: [Batch, 2] -> (eta1, eta2)
-        target: [Batch, 1]
-        """
         if target.ndim == 1:
             target = target.view(-1, 1)
         
