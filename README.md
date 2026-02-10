@@ -1,1 +1,165 @@
-# code_Confidence-Aware_AL
+# CAAL: Confidence-Aware Active Learning for Heteroscedastic Atmospheric Regression
+
+#### Authors: Fei Jiang, Jiyang Xia, Junjie Yu, Mingfei Sun, Hugh Coe, David Topping, Dantong Liu, Zhenhui Jessie Li, Zhonghua Zheng
+
+## Introduction
+The objectives of this project are:
+- A decoupled training objective for heteroscedastic regression that stabilises uncertainty estimation in AL settings.
+- A confidence-aware acquisition function that balances epistemic and aleatoric uncertainty for robust sample selection.
+- A practical framework for the cost-effective expansion of atmospheric particle property databases, with methodology applicable to other scientific domains where hard-to-measure properties must be inferred from low-cost observations under heteroscedastic conditions.
+
+## Overview
+![](./image/overview.png)
+
+## Project Structure
+
+```python
+├── Active_learning/
+│   ├── PartMC_data/            # Data Directory
+│   │   ├── PartMC_data.csv     # Raw dataset
+│   │   ├── PartMC_train.csv    # Full training set source
+│   │   ├── PartMC_labeled.csv  # Initial labeled pool (Seed)
+│   │   ├── PartMC_unlabeled.csv# Unlabeled pool
+│   │   ├── PartMC_valid.csv    # Validation set
+│   │   ├── PartMC_test.csv     # Test set
+│   │   └── data_check.ipynb    # Notebook for data integrity checks
+│   ├── main.py                 # Entry point for the Active Learning loop
+│   ├── configs.py              # Global configuration (Hyperparameters)
+│   ├── src/
+│   │   ├── models.py           # FT-Transformer, DeepEnsembleAgent & Inverse Mapping
+│   │   ├── losses.py           # NaturalGaussianNLL, FaithfulLoss, CAALLoss, Beta-NLL
+│   │   ├── datasets.py         # Data loading and preprocessing logic
+│   │   ├── strategies.py       # Query Strategies (CAAL, BALD, BADGE, Coreset, etc.)
+│   │   └── utils.py            # Metrics and helper functions
+└── README.md                   # Documentation
+```
+
+## Environment Setup
+  We recommend using **"[conda](https://docs.conda.io/en/latest/)"** to manage the Python environment.
+  
+- Install Conda (If not installed)
+
+```bash
+# Download and install conda
+$ wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+$ chmod +x Miniconda3-latest-Linux-x86_64.sh
+$ ./Miniconda3-latest-Linux-x86_64.sh
+# Edit .bash_profile or .bashrc
+PATH=$PATH:$HOME/.local/bin:$HOME/bin:$HOME/miniconda3/bin
+# Activate the conda system
+$source .bash_profile
+# OR source .bashrc
+```
+- Create Python Environment
+
+You can set up the environment using either conda.
+```bash
+# Create an environment "al" and install the necessary packages
+conda env create -f environment.yml
+# Activate the "al" environment
+conda activate al
+```
+## How to Run
+
+- Clone the Repository
+```bash
+# Clone the repository
+git clone https://github.com/envdes/code_Confidence-Aware_AL
+cd Active_learning
+```
+
+The main entry point is **main.py**. You can configure the Loss Function and Query Strategy.
+
+- Running the Code
+
+✅ Quick Start (Default Settings)
+
+This runs the code using the default values defined in ```configs.py``` (CAAL with CIS Gating strategy):
+```bash
+python main.py
+```
+
+✅ Run Our Proposed Strategy - CIS-Gating (CAAL)
+
+```bash
+python main.py --strategy cis_gating --alpha 1.0 --beta 1.0
+```
+
+✅ Run Different Active Learning Strategies
+
+```bash
+# Random Sampling
+python main.py --strategy random
+
+# BALD (Bayesian Uncertainty)
+python main.py --strategy bald
+```
+
+✅ Ablation Studies on Loss Functions
+
+```bash
+# Baseline 1: Standard Gaussian NLL (Classic Method)
+python main.py --loss nll_only --strategy entropy
+
+# Baseline 2: Faithful Loss (Detached Variance)
+python main.py --loss faithful --strategy entropy
+
+# Baseline 2: Beta-NLL
+python main.py --loss beta_nll --loss_beta 0.5
+```
+
+
+
+✅ Debugging / Fast Run
+
+If you want to test if the code works without waiting for a full training cycle:
+```bash
+# Only 2 ensemble models, 5 epochs, smaller batch size
+python main.py --n_ensembles 2 --epochs 5 --batch_size 256
+```
+
+## Arguments Reference (Configuration)
+
+You can use these flags with `python main.py`.
+
+#### System & Hardware
+
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `--seed` | Random seed for reproducibility. | `42` |
+
+#### Active Learning Strategy
+
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `--strategy` | Strategy name (`cis_gating` (CAAL), `bald`, `entropy`, `random`, `badge`, `clmd`, `aleatoric`, `coreset`, ). | `cis_gating` |
+| `--n_queries` | Total number of Active Learning rounds. | `20` |
+| `--query_batch_size` | Number of samples to query per round. | `30` |
+| `--alpha` | **Alpha** (for cis_gating): Weight for Epistemic uncertainty. | `1.0` |
+| `--beta` | **Beta** (for cis_gating): Penalty for Aleatoric uncertainty. | `1.0` |
+
+#### Loss Functions
+
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `--loss` | Loss function (`mse_sgnll`, `mse_nll`, `nll_only`, `faithful`, `beta_nll`, `nature_nll`). | `faithful` |
+| `--loss_lambda` | Weight for the uncertainty term in the loss. | `0.1` |
+| `--loss_beta` | Weight for beta-NLL. | `0.5` |
+| `--detach_grad` | (Flag) If present, detach variance gradients. | `False` |
+
+#### Model & Training
+
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `--epochs` | Training epochs per round. | `100` |
+| `--n_ensembles` | Number of models in the Deep Ensemble. | `6` |
+| `--lr` | Learning Rate. | `0.0001` |
+| `--batch_size` | Batch Size. | `128` |
+
+
+## Check Results
+After the run finishes, check the `./results_modular/` directory:
+- `performance.csv`: Contains MSE, R2, and MAE for every round.
+- `queried_indices.npy`: The IDs of the data points selected by the strategy.
+- `log.txt`: Full training logs.
+- `analysis_data/`: `.npz` files containing detailed predictions for plotting.

@@ -9,12 +9,134 @@ import pandas as pd
 import torch
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-
+import argparse
 # Import modular configuration and custom source modules
 import configs as cfg
 from src.utils import *
 from src.model import DeepEnsembleAgent, GaussianFTTransformer
 from src.strategies import StrategySelector 
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Active Learning Experiment Runner")
+
+    # --- System & GPU ---
+    parser.add_argument('--seed', type=int, default=cfg.SEED, 
+                        help='Random seed for reproducibility.')
+
+    # --- Active Learning Strategy ---
+    parser.add_argument('--strategy', type=str, default=cfg.QUERY_STRATEGY, 
+                        help="Strategy name (e.g., 'cis_gating', 'random', 'Ale', 'Entropy', 'BLAD', 'LCMD', 'BADGE', 'Coreset').")
+    parser.add_argument('--n_queries', type=int, default=cfg.N_QUERIES, 
+                        help='Number of active learning rounds.')
+    parser.add_argument('--query_batch_size', type=int, default=cfg.QUERY_BATCH_SIZE, 
+                        help='Number of samples to query per round.')
+    
+    # --- Loss Function & Hyperparameters ---
+    parser.add_argument('--loss', type=str, default=cfg.LOSS_NAME, 
+                        help="Loss function (e.g., 'mse_sgnll', 'faithful', 'mse_nll', 'beta_nll', 'nll_only', 'nature_nll').")
+    parser.add_argument('--loss_lambda', type=float, default=cfg.LOSS_LAMBDA, 
+                        help='Weight for the aleatoric uncertainty term (Lambda). only work for mse_sgnll and mse_nll')
+    parser.add_argument('--loss_beta', type=float, default=cfg.LOSS_BETA, 
+                        help='Beta hyperparameter for Beta-NLL loss.')
+    parser.add_argument('--detach_grad', action='store_true', 
+                        help='If set, detach variance gradient (for stability). True for faithful')
+
+    # --- 4. Strategy Specific (CIS / CIS-Gating) ---
+    parser.add_argument('--alpha', type=float, default=cfg.ALPHA, 
+                        help='Alpha parameter for CIS-Gating (Epistemic weight). Only use for Confidence strategy with Alpha=0')
+    parser.add_argument('--beta', type=float, default=cfg.BETA, 
+                        help='Beta parameter for CIS-Gating (Aleatoric penalty).')
+    
+    # --- 5. Training Hyperparameters ---
+    parser.add_argument('--lr', type=float, default=cfg.LEARNING_RATE, help='Learning rate.')
+    parser.add_argument('--batch_size', type=int, default=cfg.BATCH_SIZE, help='Batch size.')
+    parser.add_argument('--epochs', type=int, default=cfg.AL_EPOCHS, help='Training epochs per round.')
+    parser.add_argument('--n_ensembles', type=int, default=cfg.N_ENSEMBLES, help='Number of models in the ensemble.')
+
+    return parser.parse_args()
+
+args = parse_arguments()
+
+print(f"\n{'='*40}")
+print(f"  CONFIGURATION UPDATE")
+print(f"{'='*40}")
+# System
+cfg.SEED = args.seed
+print(f"[*] System: Seed={cfg.SEED}")
+
+# AL Settings
+cfg.QUERY_STRATEGY = args.strategy
+cfg.N_QUERIES = args.n_queries
+cfg.QUERY_BATCH_SIZE = args.query_batch_size
+cfg.ALPHA = args.alpha
+cfg.BETA = args.beta
+print(f"[*] Strategy: {cfg.QUERY_STRATEGY}")
+print(f"    - Alpha: {cfg.ALPHA}, Beta: {cfg.BETA}")
+print(f"    - Rounds: {cfg.N_QUERIES}, Batch: {cfg.QUERY_BATCH_SIZE}")
+
+# Loss Settings
+cfg.LOSS_NAME = args.loss
+cfg.LOSS_LAMBDA = args.loss_lambda
+cfg.LOSS_BETA = args.loss_beta
+cfg.DETACH_VAR_GRADIENT = args.detach_grad
+print(f"[*] Loss: {cfg.LOSS_NAME}")
+print(f"    - Lambda: {cfg.LOSS_LAMBDA}, Loss Beta: {cfg.LOSS_BETA}")
+
+# Training
+cfg.LEARNING_RATE = args.lr
+cfg.BATCH_SIZE = args.batch_size
+cfg.AL_EPOCHS = args.epochs
+cfg.N_ENSEMBLES = args.n_ensembles
+print(f"[*] Train: LR={cfg.LEARNING_RATE}, BS={cfg.BATCH_SIZE}, Epochs={cfg.AL_EPOCHS}, Ensembles={cfg.N_ENSEMBLES}")
+print(f"{'='*40}\n")
+
+# 1. Determine Experiment Group (Folder Category)
+if args.strategy in ['random', 'entropy', 'bald', 'badge', 'coreset']:
+    exp_group = "01_Baselines"
+elif args.strategy in ['cis', 'cis_gating']:
+    # Check if this is a standard run or an ablation study
+    is_standard_params = (args.alpha == 1.0 and args.beta == 1.0 and args.loss_lambda == 0.1)
+    
+    if is_standard_params:
+        exp_group = "02_Proposed_Method"
+    else:
+        exp_group = "03_Ablation_Studies"
+else:
+    exp_group = "99_Misc_Experiments"
+
+# 2. Generate Unique Run Name based on parameters
+# Format: {Strategy}_{Loss}_a{Alpha}_b{Beta}_lam{Lambda}_seed{Seed}
+run_name = f"{args.strategy}_{args.loss}"
+
+# Only add Alpha/Beta to the name if the strategy uses them
+if args.strategy in ['cis', 'cis_gating']:
+    run_name += f"_a{args.alpha}_b{args.beta}"
+
+# Only add Lambda if it's not the default 0.1 (keeps names shorter)
+if args.loss_lambda != 0.1:
+    run_name += f"_lam{args.loss_lambda}"
+
+run_name += f"_seed{args.seed}"
+
+# 3. Construct the Full Path
+# Example: ./experiments/02_Proposed_Method/cis_gating_faithful_a1.0_b1.0_seed42/
+cfg.RESULTS_DIR = os.path.join("experiments", exp_group, run_name)
+
+# 4. Update Sub-directories based on new RESULTS_DIR
+cfg.MODEL_DIR = os.path.join(cfg.RESULTS_DIR, 'models')
+cfg.PLOT_DIR = os.path.join(cfg.RESULTS_DIR, 'plots')
+cfg.ANALYSIS_DIR = os.path.join(cfg.RESULTS_DIR, 'analysis_data')
+cfg.LOG_PATH = os.path.join(cfg.RESULTS_DIR, 'log.txt')
+cfg.PERFORMANCE_PATH = os.path.join(cfg.RESULTS_DIR, 'performance.csv')
+cfg.QUERIED_IDX_PATH = os.path.join(cfg.RESULTS_DIR, 'queried_indices.npy')
+
+# 5. Create Directories
+ensure_dir(cfg.RESULTS_DIR)
+ensure_dir(cfg.MODEL_DIR)
+ensure_dir(cfg.PLOT_DIR)
+ensure_dir(cfg.ANALYSIS_DIR)
+
+print(f"[*] Results will be saved to: {cfg.RESULTS_DIR}")
 
 # ---------- Reproducibility ----------
 def set_seed(seed):
@@ -147,8 +269,8 @@ test_preds = test_preds.cpu().numpy()
 init_test_mse = mean_squared_error(y_test_orig_np, test_preds)
 init_test_r2   = r2_score(y_test_orig_np, test_preds)
 
-logger.info(f"Round 0 (Initial): Val RMSE={init_val_mse:.4f}, R2={init_val_r2:.4f}")
-logger.info(f"Round 0 (Initial): Test RMSE={init_test_mse:.4f}, R2={init_test_r2:.4f}")
+logger.info(f"Round 0 (Initial): Val MSE={init_val_mse:.4f}, R2={init_val_r2:.4f}")
+logger.info(f"Round 0 (Initial): Test MSE={init_test_mse:.4f}, R2={init_test_r2:.4f}")
 
 performance_log.append((0, init_val_mse, init_val_r2, init_test_mse, init_test_r2, 0))
 

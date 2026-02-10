@@ -46,12 +46,12 @@ def save_performance(perf_list, filepath):
     
     NOTE: The column names must match the number of values appended in main.py.
     Current configuration supports 8 columns:
-    Step, Val_RMSE, Val_MAE, Val_R2, Test_RMSE, Test_MAE, Test_R2, Time_Sec
+    Step, Val_MSE, Val_MAE, Val_R2, Test_MSE, Test_MAE, Test_R2, Time_Sec
     """
     columns = [
         'Step', 
-        'Val_RMSE', 'Val_MAE', 'Val_R2', 
-        'Test_RMSE', 'Test_MAE', 'Test_R2', 
+        'Val_MSE', 'Val_MAE', 'Val_R2', 
+        'Test_MSE', 'Test_MAE', 'Test_R2', 
         'Time_Sec'
     ]
     
