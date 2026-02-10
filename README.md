@@ -34,6 +34,34 @@ The objectives of this project are:
 └── README.md                   # Documentation
 ```
 
+
+## Implemented Methods & Baselines
+
+This repository contains an efficient implementation of our proposed framework **(CAAL)** alongside comprehensive adaptations of state-of-the-art (SOTA) baselines.
+
+### Proposed Framework (CAAL)
+The codebase includes:
+- **Decoupled Training Objective**: A training objective that decouples mean and variance learning ($\text{MSE} + \lambda \cdot \text{sg}(\text{NLL})$).
+- **Confidence-Aware Acquisition**: A novel acquisition function (**CIS-Gating** / CAAL) balancing confidence and uncertainty.
+
+### Active Learning Baselines
+We provide adaptations of the following query strategies for regression:
+- **[BALD](https://arxiv.org/abs/1112.5745)** (Bayesian Active Learning by Disagreement)
+- **[BADGE](https://arxiv.org/abs/1906.03671)** (Batch Active Learning by Diverse Gradient Embeddings)
+- **[Core-Set](https://arxiv.org/abs/1708.00489)** (Greedy Core-Set Approach)
+- **[LCMD](https://arxiv.org/abs/2203.09410)** (Largest Cluster Maximum Distance)
+- **[QBC](https://dl.acm.org/doi/10.1145/130385.130417)** (Query-by-Committee via Deep Ensembles)
+- **[ALM](https://doi.org/10.1162/neco.1992.4.5.720)** (Uncertainty Sampling / Largest Entropy)
+- **Random Sampling** (Lower Bound)
+
+### Optimization & Loss Baselines
+To verify the effectiveness of our optimization strategy, we compare against:
+- **[Natural Parametrization](https://openreview.net/forum?id=A6EquH0enk)** 
+- **[Beta-NLL](https://arxiv.org/abs/2203.09168)** ($\beta$-NLL where $\beta \in [0,1]$)
+- **[Faithful Loss](https://arxiv.org/abs/2212.09184)** 
+- **[Standard Gaussian NLL](https://arxiv.org/abs/1703.04977)** (Baseline Deep Ensembles)
+
+
 ## Environment Setup
   We recommend using **"[conda](https://docs.conda.io/en/latest/)"** to manage the Python environment.
   
