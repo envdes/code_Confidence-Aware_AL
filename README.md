@@ -14,7 +14,7 @@ The objectives of this project are:
 ## Project Structure
 
 ```python
-├── Active_learning/
+├── CAAL/
 │   ├── PartMC_data/            # Data Directory
 │   │   ├── PartMC_data.csv     # Raw dataset
 │   │   ├── PartMC_train.csv    # Full training set source
@@ -189,5 +189,5 @@ You can use these flags with `python main.py`.
 After the run finishes, check the `./results_modular/` directory:
 - `performance.csv`: Contains MSE, R2, and MAE for every round.
 - `queried_indices.npy`: The IDs of the data points selected by the strategy.
-- `log.txt`: Full training logs.
 - `analysis_data/`: `.npz` files containing detailed predictions for plotting.
+- `models/`: `.pt` Models saving.
