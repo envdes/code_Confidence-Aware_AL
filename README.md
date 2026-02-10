@@ -16,6 +16,8 @@ The objectives of this project are:
 ```python
 ├── CAAL/
 │   ├── PartMC_data/            # Data Directory
+│   │   # chi_a - chemical based aerosol mixing state index 
+│   │   # chi_o - optical aerosol mixing state index
 │   │   ├── PartMC_data.csv     # Raw dataset
 │   │   ├── PartMC_train.csv    # Full training set source
 │   │   ├── PartMC_labeled.csv  # Initial labeled pool (Seed)
@@ -93,7 +95,7 @@ conda activate al
 ```bash
 # Clone the repository
 git clone https://github.com/envdes/code_Confidence-Aware_AL
-cd Active_learning
+cd CAAL
 ```
 
 The main entry point is **main.py**. You can configure the Loss Function and Query Strategy.
@@ -110,7 +112,7 @@ python main.py
 ✅ Run Our Proposed Strategy - CIS-Gating (CAAL)
 
 ```bash
-python main.py --strategy cis_gating --alpha 1.0 --beta 1.0
+python main.py --strategy cis_gating --alpha 1.0 --beta 1.0 --loss mse_sgnll --loss_lambda 0.1
 ```
 
 ✅ Run Different Active Learning Strategies

@@ -90,54 +90,6 @@ cfg.N_ENSEMBLES = args.n_ensembles
 print(f"[*] Train: LR={cfg.LEARNING_RATE}, BS={cfg.BATCH_SIZE}, Epochs={cfg.AL_EPOCHS}, Ensembles={cfg.N_ENSEMBLES}")
 print(f"{'='*40}\n")
 
-# 1. Determine Experiment Group (Folder Category)
-if args.strategy in ['random', 'entropy', 'bald', 'badge', 'coreset']:
-    exp_group = "01_Baselines"
-elif args.strategy in ['cis', 'cis_gating']:
-    # Check if this is a standard run or an ablation study
-    is_standard_params = (args.alpha == 1.0 and args.beta == 1.0 and args.loss_lambda == 0.1)
-    
-    if is_standard_params:
-        exp_group = "02_Proposed_Method"
-    else:
-        exp_group = "03_Ablation_Studies"
-else:
-    exp_group = "99_Misc_Experiments"
-
-# 2. Generate Unique Run Name based on parameters
-# Format: {Strategy}_{Loss}_a{Alpha}_b{Beta}_lam{Lambda}_seed{Seed}
-run_name = f"{args.strategy}_{args.loss}"
-
-# Only add Alpha/Beta to the name if the strategy uses them
-if args.strategy in ['cis', 'cis_gating']:
-    run_name += f"_a{args.alpha}_b{args.beta}"
-
-# Only add Lambda if it's not the default 0.1 (keeps names shorter)
-if args.loss_lambda != 0.1:
-    run_name += f"_lam{args.loss_lambda}"
-
-run_name += f"_seed{args.seed}"
-
-# 3. Construct the Full Path
-# Example: ./experiments/02_Proposed_Method/cis_gating_faithful_a1.0_b1.0_seed42/
-cfg.RESULTS_DIR = os.path.join("experiments", exp_group, run_name)
-
-# 4. Update Sub-directories based on new RESULTS_DIR
-cfg.MODEL_DIR = os.path.join(cfg.RESULTS_DIR, 'models')
-cfg.PLOT_DIR = os.path.join(cfg.RESULTS_DIR, 'plots')
-cfg.ANALYSIS_DIR = os.path.join(cfg.RESULTS_DIR, 'analysis_data')
-cfg.LOG_PATH = os.path.join(cfg.RESULTS_DIR, 'log.txt')
-cfg.PERFORMANCE_PATH = os.path.join(cfg.RESULTS_DIR, 'performance.csv')
-cfg.QUERIED_IDX_PATH = os.path.join(cfg.RESULTS_DIR, 'queried_indices.npy')
-
-# 5. Create Directories
-ensure_dir(cfg.RESULTS_DIR)
-ensure_dir(cfg.MODEL_DIR)
-ensure_dir(cfg.PLOT_DIR)
-ensure_dir(cfg.ANALYSIS_DIR)
-
-print(f"[*] Results will be saved to: {cfg.RESULTS_DIR}")
-
 # ---------- Reproducibility ----------
 def set_seed(seed):
     random.seed(seed)
@@ -181,25 +133,25 @@ features = [
 
 
 logger.info("Loading data...")
-labeled_df = pd.read_csv('../PartMC_data/PartMC_labeled.csv')
-unlabeled_df = pd.read_csv('../PartMC_data/PartMC_unlabeled.csv')
-valid_df = pd.read_csv('../PartMC_data/PartMC_valid.csv')
-test_df  = pd.read_csv('../PartMC_data/PartMC_test.csv')
+labeled_df = pd.read_csv('./PartMC_data/PartMC_labeled.csv')
+unlabeled_df = pd.read_csv('./PartMC_data/PartMC_unlabeled.csv')
+valid_df = pd.read_csv('./PartMC_data/PartMC_valid.csv')
+test_df  = pd.read_csv('./PartMC_data/PartMC_test.csv')
 
 # scenario_pool identifies which physical scenario each data point belongs to (for Group Selection)
 scenarios_pool = unlabeled_df['Scenario_ID'].values
 logger.info(f"Loaded Pool Scenarios. Unique Scenarios: {len(np.unique(scenarios_pool))}")
 
 X_train_np = labeled_df[features].values
-y_train_np = labeled_df['Chi'].values
+y_train_np = labeled_df['Chi_a'].values
 
 X_pool_np = unlabeled_df[features].values
-y_pool_np = unlabeled_df['Chi'].values
+y_pool_np = unlabeled_df['Chi_a'].values
 
 X_valid_np = valid_df[features].values
-y_valid_np = valid_df['Chi'].values
+y_valid_np = valid_df['Chi_a'].values
 X_test_np  = test_df[features].values
-y_test_np  = test_df['Chi'].values
+y_test_np  = test_df['Chi_a'].values
 
 # Standardize features based on the initial training set
 scaler = StandardScaler()
