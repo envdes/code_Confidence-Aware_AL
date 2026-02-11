@@ -55,7 +55,7 @@ This repository contains an efficient implementation of our proposed framework *
 
 ### Proposed Framework (CAAL)
 The codebase includes:
-- **Decoupled Training Objective**: A training objective that decouples mean and variance learning ($\text{MSE} + \lambda \cdot \text{sg}(\text{NLL})$).
+- **Decoupled Training Objective**: A training objective that decouples mean and variance learning (**MSE+lambda·sg(NLL)**).
 - **Confidence-Aware Acquisition**: A novel acquisition function (**CIS-Gating** / CAAL) balancing confidence and uncertainty.
 
 ### Active Learning Baselines
