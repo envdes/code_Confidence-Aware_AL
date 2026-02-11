@@ -13,28 +13,40 @@ The objectives of this project are:
 
 ## Project Structure
 
-```python
-├── CAAL/
-│   ├── PartMC_data/            # Data Directory
-│   │   # chi_a - chemical based aerosol mixing state index 
-│   │   # chi_o - optical aerosol mixing state index
-│   │   ├── PartMC_data.csv     # Raw dataset
-│   │   ├── PartMC_train.csv    # Full training set source
-│   │   ├── PartMC_labeled.csv  # Initial labeled pool (Seed)
-│   │   ├── PartMC_unlabeled.csv# Unlabeled pool
-│   │   ├── PartMC_valid.csv    # Validation set
-│   │   ├── PartMC_test.csv     # Test set
-│   │   └── data_check.ipynb    # Notebook for data integrity checks
-│   ├── main.py                 # Entry point for the Active Learning loop
-│   ├── configs.py              # Global configuration (Hyperparameters)
-│   ├── src/
-│   │   ├── models.py           # FT-Transformer, DeepEnsembleAgent & Inverse Mapping
-│   │   ├── losses.py           # NaturalGaussianNLL, FaithfulLoss, CAALLoss, Beta-NLL
-│   │   ├── datasets.py         # Data loading and preprocessing logic
+```bash
+code_Confidence-Aware_AL/
+│
+├── README.md                   # Project documentation (How to run, dependencies)
+├── environment.yml            # Python dependencies (torch, pandas, sklearn, etc.)
+├── .gitignore                  
+│
+├── 📁 CAAL_PartMC/             # Group-based, Range [0,1]
+│   │  # Logic: Logit-Normal Distribution
+│   ├── 📁 PartMC_data/                # Data specific to PartMC
+│   │   ├── PartMC_labeled.csv
+│   │   ├── PartMC_unlabeled.csv
+│   │   └── ...
+│   ├── 📁 src/                 # Source code package
+│   │   ├── __init__.py         
+│   │   ├── models.py           # FT-Transformer & DeepEnsembleAgent
 │   │   ├── strategies.py       # Query Strategies (CAAL, BALD, BADGE, Coreset, etc.)
-│   │   └── utils.py            # Metrics and helper functions
-└── README.md                   # Documentation
+│   │   ├── losses.py           # Loss functions (e.g., Faithful, Beta-NLL)
+│   │   └── utils.py            # Metrics, plotting, logging
+│   ├── configs.py              # Configuration (Hyperparams, Group settings)
+│   └── main.py                 # Entry point for training
+│
+└── 📁 CAAL_VR/                 # Point-based, Log-Normal, Range > 0
+│    │   #  Logic: Log-Normal Distribution
+│    ├── 📁 src/                 # Source code package
+│    │   ├── __init__.py         
+│    │   ├── models.py           # FT-Transformer & Ensemble (Exp/Log output logic)
+│    │   ├── strategies.py       # Point-based selection strategies (LCMD, CIS, etc.)
+│    │   ├── losses.py           # Loss functions
+│    │   └── utils.py            # Metrics (RMSE/R2 calculation), plotting
+│    ├── configs.py              # Configuration (Hyperparams, Point settings)
+│    └── main.py                 # Entry point for training
 ```
+
 
 
 ## Implemented Methods & Baselines
@@ -95,7 +107,7 @@ conda activate al
 ```bash
 # Clone the repository
 git clone https://github.com/envdes/code_Confidence-Aware_AL
-cd CAAL
+cd CAAL_PartMC
 ```
 
 The main entry point is **main.py**. You can configure the Loss Function and Query Strategy.
